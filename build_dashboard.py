@@ -617,9 +617,10 @@ HTML = """<!doctype html>
   .leaflet-container { background:#f5f5f0; border-radius:10px; }
   .state-tooltip, .point-tooltip {
     background:rgba(15,20,25,0.96); color:#fff; border:none !important;
-    border-radius:7px; padding:10px 13px;
+    border-radius:7px; padding:11px 14px;
     box-shadow:0 4px 14px rgba(0,0,0,0.22);
-    font-size:12px; line-height:1.45; max-width:320px;
+    font-size:12px; line-height:1.5; max-width:340px;
+    white-space:normal; word-wrap:break-word; overflow-wrap:break-word;
   }
   .state-tooltip b, .point-tooltip b { font-size:13px; color:#36C2A1; }
   .state-tooltip .row, .point-tooltip .row { margin:3px 0; }
@@ -864,13 +865,12 @@ stateAggs.forEach(s => {
     `<b>${s.sn}</b>
      <div class="row">${s.tot.toLocaleString()} sightings</div>
      <div class="row muted">Median duration: ${s.avg_min} min</div>
-     <div class="row" style="margin-top:6px;">
-       <span style="display:inline-flex;align-items:center;gap:6px;">
-         <span style="width:9px;height:9px;border-radius:50%;background:${dominantColor};display:inline-block;"></span>
-         Most common event type: <b>${dominantLabel}</b> (${s.dcl_pct}%)
-       </span>
+     <div class="row muted" style="margin-top:7px;">Most common event type:</div>
+     <div class="row" style="display:flex;align-items:center;gap:7px;">
+       <span style="width:9px;height:9px;border-radius:50%;background:${dominantColor};display:inline-block;flex-shrink:0;"></span>
+       <span><b>${dominantLabel}</b> <span style="opacity:0.65;">(${s.dcl_pct}%)</span></span>
      </div>
-     <div class="row" style="margin-top:6px;">Top event types:</div>
+     <div class="row muted" style="margin-top:7px;">Top event types:</div>
      ${topEventsHtml}`;
   const icon = L.divIcon({
     html: `<div style="background:${STATE_COLOR};color:#fff;font-weight:700;font-size:12px;
@@ -939,11 +939,9 @@ function pointTooltipHtml(p) {
   return `
     <b>${p.ct || 'Unknown city'}, ${p.st}</b>
     <div class="row" style="color:#fff; opacity:0.85;">${p.dts || p.yr}</div>
-    <div class="row" style="margin-top:6px;">
-      <span style="display:inline-flex;align-items:center;gap:6px;">
-        <span style="width:9px;height:9px;border-radius:50%;background:${clColor};display:inline-block;"></span>
-        Event type: <b>${CLUSTER_LABELS[p.cl] || '—'}</b>
-      </span>
+    <div class="row" style="margin-top:6px; display:flex; align-items:center; gap:7px;">
+      <span style="width:9px;height:9px;border-radius:50%;background:${clColor};display:inline-block;flex-shrink:0;"></span>
+      <span>Event type: <b>${CLUSTER_LABELS[p.cl] || '—'}</b></span>
     </div>
     <div class="row">Duration: <b>${p.dt || '—'}</b></div>
     <div class="row">Coords: ${p.lat0.toFixed(3)}, ${p.lng0.toFixed(3)}</div>

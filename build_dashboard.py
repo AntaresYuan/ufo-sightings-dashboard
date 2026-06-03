@@ -165,8 +165,8 @@ print()
 print("Computing state aggregates...")
 state_aggs = []
 for st, sub in df.groupby("state"):
-    top_shapes = sub["shape_group"].value_counts().head(3)
     cluster_counts = sub["cluster"].value_counts()
+    top_clusters = cluster_counts.head(3)
     dominant_cluster = int(cluster_counts.idxmax())
     pop = STATE_POPULATION.get(st)
     rate = round(len(sub) / pop * 100_000, 2) if pop else None  # per 100k residents
@@ -176,8 +176,10 @@ for st, sub in df.groupby("state"):
         "tot": int(len(sub)),
         "lat": float(sub["lat"].mean()),
         "lng": float(sub["lng"].mean()),
-        "top": [{"sg": s, "n": int(n)} for s, n in top_shapes.items()],
-        "avg_min": round(sub["duration_sec"].median() / 60.0, 1),  # median is more robust than mean
+        # top event types (narrative clusters)
+        "topcl": [{"cl": int(c), "lbl": CLUSTER_LABELS[int(c)], "n": int(n)}
+                  for c, n in top_clusters.items()],
+        "avg_min": round(sub["duration_sec"].median() / 60.0, 1),
         "dcl": dominant_cluster,
         "dcl_pct": round(100 * cluster_counts.iloc[0] / len(sub), 1),
         "pop": pop,
@@ -366,30 +368,34 @@ cl_fig.update_layout(
     yaxis=dict(tickfont=dict(size=11)),
 )
 
-# ---- Duration by shape (Altair — REQUIRED) ----
+# ---- Duration by event-type (narrative cluster) — Altair (REQUIRED) ----
 df_dur = df.copy()
 df_dur["duration_min"] = df_dur["duration_sec"] / 60.0
+df_dur["event_type"]   = df_dur["cluster"].map(CLUSTER_LABELS)
 df_dur_sample = df_dur.sample(min(8000, len(df_dur)), random_state=0)[
-    ["shape_group", "duration_min"]
+    ["event_type", "duration_min"]
 ]
+CLUSTER_LABEL_LIST = [CLUSTER_LABELS[k] for k in sorted(CLUSTER_LABELS.keys())]
+CLUSTER_COLOR_LIST = [CLUSTER_COLOR[k]  for k in sorted(CLUSTER_LABELS.keys())]
 duration_chart = (
     alt.Chart(df_dur_sample)
     .mark_boxplot(extent="min-max", size=18)
     .encode(
-        y=alt.Y("shape_group:N", sort=SHAPE_DOMAIN, title=None,
+        y=alt.Y("event_type:N",
+                sort=CLUSTER_LABEL_LIST,
+                title=None,
                 axis=alt.Axis(labelFontSize=11)),
         x=alt.X("duration_min:Q",
                 scale=alt.Scale(type="log"),
                 title="Duration (minutes, log scale)",
                 axis=alt.Axis(titleFontSize=11, labelFontSize=10)),
         color=alt.Color(
-            "shape_group:N",
-            scale=alt.Scale(domain=SHAPE_DOMAIN,
-                            range=[SHAPE_COLOR[s] for s in SHAPE_DOMAIN]),
+            "event_type:N",
+            scale=alt.Scale(domain=CLUSTER_LABEL_LIST, range=CLUSTER_COLOR_LIST),
             legend=None,
         ),
     )
-    .properties(width="container", height="container")
+    .properties(width="container", height="container", title="Duration by event type")
     .configure_view(strokeWidth=0)
 )
 duration_spec = json.loads(duration_chart.to_json())
@@ -617,11 +623,6 @@ HTML = """<!doctype html>
       <button data-tab="when">When</button>
       <button data-tab="what">What</button>
     </nav>
-    <span id="cluster-filter-chip" style="display:none; background:#1a2027; color:#fff; padding:6px 10px 6px 8px; border-radius:14px; align-items:center; gap:8px; cursor:pointer; font-size:12px;">
-      <span class="swatch" style="width:10px;height:10px;border-radius:50%;display:inline-block;"></span>
-      <span class="label" style="font-weight:600;"></span>
-      <span style="opacity:0.6; padding-left:6px;">✕ clear</span>
-    </span>
     <button id="clear-all-btn" title="Reset every filter to its default" style="background:transparent; border:1px solid #2a313a; color:#9ba3ad; padding:6px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:600; letter-spacing:0.02em;">
       ↺ Clear all
     </button>
@@ -650,9 +651,9 @@ HTML = """<!doctype html>
         <select id="state-filter">
           <option value="ALL">All U.S. states</option>
         </select>
-        <label for="shape-filter">Shape</label>
-        <select id="shape-filter">
-          <option value="ALL">All shape groups</option>
+        <label for="event-filter">Event type</label>
+        <select id="event-filter">
+          <option value="ALL">All event types</option>
         </select>
       </div>
       <div class="card" style="flex:1;">
@@ -661,7 +662,7 @@ HTML = """<!doctype html>
           <div style="margin-bottom:9px;">
             <b style="color:#0f1419;">Zoomed-out:</b> one green circle per
             state. Number = total sightings 1950–2014. Hover for the state's
-            top shape types and median sighting duration.
+            top event types and median sighting duration.
           </div>
           <div style="margin-bottom:9px;">
             <b style="color:#0f1419;">Zoomed-in:</b> individual reports,
@@ -733,7 +734,9 @@ HTML = """<!doctype html>
       <div class="terms-grid" id="cluster-terms-grid"></div>
     </div>
     <div class="card">
-      <h2>Duration by shape <span class="hint">Altair box plot · log x · sample of 8k reports</span></h2>
+      <h2>Duration by event type
+        <span class="hint">Altair · log x · 8k-record sample · click "⋯" on the chart to save PNG / SVG</span>
+      </h2>
       <div class="body" style="padding:14px 18px;"><div id="vega-duration"></div></div>
     </div>
     <div class="card">
@@ -747,10 +750,10 @@ HTML = """<!doctype html>
         population — California has the most sightings because it has the most people. The
         per-capita view above ranks states by sightings per 100,000 residents. The top of the
         list is your actually-better destination. Click any bar to focus the map on that state.</p>
-        <p style="margin:0 0 10px;"><b>Duration by shape:</b> The Altair box plot shows the
-        middle 50% of reported sighting durations per shape group, on a log scale. Boxes farther
-        right = longer encounters = better odds of sustained contact (or of being a deeply
-        confused observer).</p>
+        <p style="margin:0 0 10px;"><b>Duration by event type:</b> The Altair box plot shows the
+        middle 50% of reported sighting durations per narrative cluster, on a log scale. Boxes
+        farther right = longer encounters = better odds of sustained contact (or of being a
+        deeply confused observer).</p>
         <p style="margin:0;"><b>Narrative clusters:</b> "General night-sky reports" is the
         catch-all bucket (35% of all reports). The narrower clusters — <em>Triangular craft</em>,
         <em>Hovering shaped objects</em>, <em>Classic "UFO" reports</em> — are the more story-
@@ -817,9 +820,11 @@ stateAggs.forEach(s => {
   const r = Math.max(18, Math.min(48, 8 + Math.sqrt(s.tot) * 0.8));
   const dominantLabel = CLUSTER_LABELS[s.dcl] || '—';
   const dominantColor = CLUSTER_COLOR[s.dcl] || '#999';
-  const topShapesHtml = s.top.map(t =>
+  const topEventsHtml = (s.topcl || []).map(t =>
     `<div class="row" style="display:flex;justify-content:space-between;gap:14px;">
-       <span>${t.sg}</span>
+       <span style="display:inline-flex;align-items:center;gap:6px;">
+         <span style="width:8px;height:8px;border-radius:50%;background:${CLUSTER_COLOR[t.cl]||'#999'};display:inline-block;"></span>${t.lbl}
+       </span>
        <span>${t.n.toLocaleString()}</span>
      </div>`).join('');
   const tipHtml =
@@ -829,11 +834,11 @@ stateAggs.forEach(s => {
      <div class="row" style="margin-top:6px;">
        <span style="display:inline-flex;align-items:center;gap:6px;">
          <span style="width:9px;height:9px;border-radius:50%;background:${dominantColor};display:inline-block;"></span>
-         Most common narrative: <b>${dominantLabel}</b> (${s.dcl_pct}%)
+         Most common event type: <b>${dominantLabel}</b> (${s.dcl_pct}%)
        </span>
      </div>
-     <div class="row" style="margin-top:6px;">Top shapes:</div>
-     ${topShapesHtml}`;
+     <div class="row" style="margin-top:6px;">Top event types:</div>
+     ${topEventsHtml}`;
   const icon = L.divIcon({
     html: `<div style="background:${STATE_COLOR};color:#fff;font-weight:700;font-size:12px;
             width:${r}px;height:${r}px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -901,16 +906,15 @@ function pointTooltipHtml(p) {
   return `
     <b>${p.ct || 'Unknown city'}, ${p.st}</b>
     <div class="row" style="color:#fff; opacity:0.85;">${p.dts || p.yr}</div>
-    <div class="row" style="margin-top:6px;">Shape: <b>${p.sh || '—'}</b> <span class="muted">(${p.sg})</span></div>
+    <div class="row" style="margin-top:6px;">
+      <span style="display:inline-flex;align-items:center;gap:6px;">
+        <span style="width:9px;height:9px;border-radius:50%;background:${clColor};display:inline-block;"></span>
+        Event type: <b>${CLUSTER_LABELS[p.cl] || '—'}</b>
+      </span>
+    </div>
     <div class="row">Duration: <b>${p.dt || '—'}</b></div>
     <div class="row">Coords: ${p.lat0.toFixed(3)}, ${p.lng0.toFixed(3)}</div>
     ${reportedRow}
-    <div class="row" style="margin-top:4px;">
-      <span style="display:inline-flex;align-items:center;gap:6px;">
-        <span style="width:9px;height:9px;border-radius:50%;background:${clColor};display:inline-block;"></span>
-        Narrative cluster: <b>${CLUSTER_LABELS[p.cl] || '—'}</b>
-      </span>
-    </div>
     ${desc}
   `;
 }
@@ -942,9 +946,7 @@ function syncLayersToZoom() {
   } else {
     if (map.hasLayer(stateLayer)) map.removeLayer(stateLayer);
     SHAPE_DOMAIN.forEach(sg => {
-      if (selectedShape === 'ALL' || selectedShape === sg) {
-        if (!map.hasLayer(pointLayers[sg])) map.addLayer(pointLayers[sg]);
-      }
+      if (!map.hasLayer(pointLayers[sg])) map.addLayer(pointLayers[sg]);
     });
   }
 }
@@ -955,7 +957,6 @@ syncLayersToZoom();
 
 /* ====================== FILTERS ====================== */
 let selectedState   = 'ALL';
-let selectedShape   = 'ALL';
 let selectedCluster = 'ALL';   // string id ("0"..."5") or 'ALL'
 
 const stateSel = document.getElementById('state-filter');
@@ -966,11 +967,11 @@ stateAggs.forEach(s => {
   stateSel.appendChild(opt);
 });
 
-const shapeSel = document.getElementById('shape-filter');
-SHAPE_DOMAIN.forEach(sg => {
+const eventSel = document.getElementById('event-filter');
+Object.entries(CLUSTER_LABELS).forEach(([cid, label]) => {
   const opt = document.createElement('option');
-  opt.value = sg; opt.textContent = sg;
-  shapeSel.appendChild(opt);
+  opt.value = cid; opt.textContent = label;
+  eventSel.appendChild(opt);
 });
 
 // Populate the cluster legend in the "How to read this map" card
@@ -991,8 +992,10 @@ function applyFilters() {
   /* Apply filters to the points dataset for side-panel charts + info card. */
   let filtered = points;
   if (selectedState   !== 'ALL') filtered = filtered.filter(p => p.st === selectedState);
-  if (selectedShape   !== 'ALL') filtered = filtered.filter(p => p.sg === selectedShape);
   if (selectedCluster !== 'ALL') filtered = filtered.filter(p => String(p.cl) === selectedCluster);
+  /* Keep header dropdowns in sync with the current filter state */
+  stateSel.value = selectedState;
+  eventSel.value = selectedCluster;
 
   /* Info card */
   document.getElementById('state-total-display').textContent = filtered.length.toLocaleString();
@@ -1041,13 +1044,11 @@ function applyFilters() {
     hovertemplate:'<b>%{y}</b><br>%{x:,} sightings · click to filter<extra></extra>',
   }], clSpec.layout, cfg);
 
-  /* Main map shape filter — toggle the 6 cluster layers' visibility */
+  /* Main map: ensure all (internal) shape-group layers are visible
+     at high zoom — there is no per-shape filter anymore. */
   SHAPE_DOMAIN.forEach(sg => {
-    const shouldShow = (selectedShape === 'ALL' || selectedShape === sg);
-    if (shouldShow) {
-      if (!map.hasLayer(pointLayers[sg]) && map.getZoom() >= ZOOM_THRESHOLD) map.addLayer(pointLayers[sg]);
-    } else {
-      if (map.hasLayer(pointLayers[sg])) map.removeLayer(pointLayers[sg]);
+    if (!map.hasLayer(pointLayers[sg]) && map.getZoom() >= ZOOM_THRESHOLD) {
+      map.addLayer(pointLayers[sg]);
     }
   });
 
@@ -1069,15 +1070,6 @@ function applyFilters() {
   }
   syncLayersToZoom();
 
-  /* Show / clear active-filter chip */
-  const chip = document.getElementById('cluster-filter-chip');
-  if (selectedCluster !== 'ALL') {
-    chip.style.display = 'inline-flex';
-    chip.querySelector('span.label').textContent = CLUSTER_LABELS[selectedCluster];
-    chip.querySelector('span.swatch').style.background = CLUSTER_COLOR[selectedCluster];
-  } else {
-    chip.style.display = 'none';
-  }
 }
 
 /* Re-populate the 6 shape sub-layers from the points array, respecting
@@ -1102,8 +1094,8 @@ function rebuildClusterFilter() {
   });
 }
 
-stateSel.addEventListener('change', e => { selectedState = e.target.value; applyFilters(); });
-shapeSel.addEventListener('change', e => { selectedShape = e.target.value; applyFilters(); });
+stateSel.addEventListener('change', e => { selectedState   = e.target.value; applyFilters(); });
+eventSel.addEventListener('change', e => { selectedCluster = e.target.value; applyFilters(); });
 
 /* Cluster bar — click a bar to filter the map; click same bar again to clear */
 function attachClusterBarClick() {
@@ -1152,20 +1144,13 @@ function highlightPerCapitaSelectedState() {
   Plotly.restyle('plotly-sh', { 'marker.line.width': [widths], 'marker.line.color': [colors] });
 }
 
-/* Header chip — click "Clear" to drop only the cluster filter */
-document.getElementById('cluster-filter-chip').addEventListener('click', () => {
-  selectedCluster = 'ALL';
-  applyFilters();
-});
-
 /* "Clear all" — reset every filter and the dropdowns at once.
    This is the "history / undo" affordance for Shneiderman's task list. */
 document.getElementById('clear-all-btn').addEventListener('click', () => {
   selectedState   = 'ALL';
-  selectedShape   = 'ALL';
   selectedCluster = 'ALL';
   stateSel.value = 'ALL';
-  shapeSel.value = 'ALL';
+  eventSel.value = 'ALL';
   applyFilters();
 });
 
@@ -1265,7 +1250,13 @@ Plotly.newPlot('plotly-sh', shSpec.data, shSpec.layout, cfg).then(() => {
 Plotly.newPlot('plotly-cl', clSpec.data, clSpec.layout, cfg).then(() => {
   attachClusterBarClick();
 });
-vegaEmbed('#vega-duration', durSpec, { actions:false, renderer:'svg' });
+/* Enable the Vega-Embed "⋯" menu but limit it to export options only
+   (Save as PNG / SVG). Source / Compiled / Editor entries are hidden. */
+vegaEmbed('#vega-duration', durSpec, {
+  actions: { export: { png: true, svg: true }, source: false, compiled: false, editor: false },
+  renderer: 'svg',
+  downloadFileName: 'duration_by_event_type'
+});
 
 // Cluster top terms grid
 const termsGrid = document.getElementById('cluster-terms-grid');

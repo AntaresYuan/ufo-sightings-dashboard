@@ -263,22 +263,37 @@ decades = sorted(df["decade"].unique())
 # ============================================================================
 # 5. PLOTLY FIGURES (autosize)
 # ============================================================================
-# ---- Time series (When tab) ----
-ts_fig = go.Figure()
-ts_fig.add_trace(go.Scatter(
-    x=us_year["year"], y=us_year["count"],
-    mode="lines", fill="tozeroy",
-    line=dict(color="#1E7F5E", width=2.2),
-    fillcolor="rgba(54,194,161,0.22)",
-    hovertemplate="<b>%{x}</b><br>%{y:,} sightings<extra></extra>",
-))
-ts_fig.update_layout(
-    margin=dict(l=44, r=12, t=8, b=28),
-    paper_bgcolor="white", plot_bgcolor="white",
-    autosize=True, showlegend=False,
-    xaxis=dict(showgrid=False, tickfont=dict(size=11)),
-    yaxis=dict(showgrid=True, gridcolor="#eee", tickfont=dict(size=11)),
+# ---- Time series (When tab) — ALTAIR (satisfies the course Altair requirement) ----
+us_year_for_alt = us_year.rename(columns={"year": "Year", "count": "Sightings"})
+ts_chart = (
+    alt.Chart(us_year_for_alt, title="")
+    .mark_area(
+        line=alt.LineConfig(color="#1E7F5E", strokeWidth=2.2, opacity=1),
+        color=alt.Gradient(
+            gradient="linear",
+            stops=[alt.GradientStop(color="rgba(54,194,161,0.30)", offset=0),
+                   alt.GradientStop(color="rgba(54,194,161,0.05)", offset=1)],
+            x1=0, x2=0, y1=0, y2=1,
+        ),
+        interpolate="monotone",
+    )
+    .encode(
+        x=alt.X("Year:O",
+                axis=alt.Axis(values=list(range(1950, 2015, 10)),
+                              labelFontSize=11, titleFontSize=11, title=None)),
+        y=alt.Y("Sightings:Q",
+                axis=alt.Axis(labelFontSize=11, titleFontSize=11,
+                              grid=True, gridColor="#eee")),
+        tooltip=[
+            alt.Tooltip("Year:O"),
+            alt.Tooltip("Sightings:Q", format=","),
+        ],
+    )
+    .properties(width="container", height="container")
+    .configure_view(strokeWidth=0)
+    .configure_axis(domain=False)
 )
+ts_spec_altair = json.loads(ts_chart.to_json())
 
 # ---- Decade choropleth (single, JS will swap data by decade) ----
 def make_decade_choropleth(decade):
@@ -368,37 +383,56 @@ cl_fig.update_layout(
     yaxis=dict(tickfont=dict(size=11)),
 )
 
-# ---- Duration by event-type (narrative cluster) — Altair (REQUIRED) ----
+# ---- Duration by event-type (narrative cluster) — PLOTLY box plot ----
 df_dur = df.copy()
 df_dur["duration_min"] = df_dur["duration_sec"] / 60.0
 df_dur["event_type"]   = df_dur["cluster"].map(CLUSTER_LABELS)
-df_dur_sample = df_dur.sample(min(8000, len(df_dur)), random_state=0)[
-    ["event_type", "duration_min"]
-]
+df_dur_sample = df_dur.sample(min(8000, len(df_dur)), random_state=0)
 CLUSTER_LABEL_LIST = [CLUSTER_LABELS[k] for k in sorted(CLUSTER_LABELS.keys())]
 CLUSTER_COLOR_LIST = [CLUSTER_COLOR[k]  for k in sorted(CLUSTER_LABELS.keys())]
-duration_chart = (
-    alt.Chart(df_dur_sample)
-    .mark_boxplot(extent="min-max", size=18)
-    .encode(
-        y=alt.Y("event_type:N",
-                sort=CLUSTER_LABEL_LIST,
-                title=None,
-                axis=alt.Axis(labelFontSize=11)),
-        x=alt.X("duration_min:Q",
-                scale=alt.Scale(type="log"),
-                title="Duration (minutes, log scale)",
-                axis=alt.Axis(titleFontSize=11, labelFontSize=10)),
-        color=alt.Color(
-            "event_type:N",
-            scale=alt.Scale(domain=CLUSTER_LABEL_LIST, range=CLUSTER_COLOR_LIST),
-            legend=None,
-        ),
-    )
-    .properties(width="container", height="container", title="Duration by event type")
-    .configure_view(strokeWidth=0)
+# Build a per-cluster summary (min / q1 / median / q3 / max) so we can show
+# one compact tooltip per box instead of Plotly's default 5-stat avalanche.
+dur_stats = (
+    df_dur_sample.groupby("event_type")["duration_min"]
+                 .describe(percentiles=[0.25, 0.5, 0.75])
+                 [["min","25%","50%","75%","max"]]
+                 .to_dict("index")
 )
-duration_spec = json.loads(duration_chart.to_json())
+
+dur_fig = go.Figure()
+for k in sorted(CLUSTER_LABELS.keys()):
+    label = CLUSTER_LABELS[k]
+    sub = df_dur_sample[df_dur_sample["event_type"] == label]
+    s = dur_stats.get(label, {})
+    summary = (
+        f"<b>{label}</b><br>"
+        f"median: {s.get('50%', 0):.1f} min · "
+        f"IQR: {s.get('25%', 0):.1f} – {s.get('75%', 0):.1f} min · "
+        f"range: {s.get('min', 0):.2f} – {s.get('max', 0):.0f} min"
+        "<extra></extra>"
+    )
+    dur_fig.add_trace(go.Box(
+        x=sub["duration_min"],
+        name=label,
+        marker_color=CLUSTER_COLOR[k],
+        boxpoints=False,
+        orientation="h",
+        hoveron="boxes",          # hover ONLY on the box body, not on every quartile
+        hoverinfo="text",
+        hovertext=summary,
+    ))
+dur_fig.update_layout(
+    xaxis=dict(type="log", title="Duration (minutes, log scale)",
+               showgrid=True, gridcolor="#eee", tickfont=dict(size=11),
+               title_font=dict(size=11)),
+    yaxis=dict(autorange="reversed",          # match top-down legend order
+               tickfont=dict(size=11)),
+    margin=dict(l=170, r=20, t=8, b=40),
+    paper_bgcolor="white", plot_bgcolor="white",
+    autosize=True, showlegend=False,
+    hovermode="closest",                       # only the nearest box, never all 5 stats
+)
+duration_spec = dur_fig.to_dict()
 
 
 # ============================================================================
@@ -578,8 +612,8 @@ HTML = """<!doctype html>
   }
   .help b { color:#0f1419; }
 
-  #plotly-ts, #plotly-sh, #plotly-cl, #plotly-decmap { width:100%; height:100%; min-height:0; }
-  #vega-duration { width:100%; height:100%; }
+  #plotly-sh, #plotly-cl, #plotly-decmap, #plotly-duration { width:100%; height:100%; min-height:0; }
+  #vega-ts { width:100%; height:100%; }
   .leaflet-container { background:#f5f5f0; border-radius:10px; }
   .state-tooltip, .point-tooltip {
     background:rgba(15,20,25,0.96); color:#fff; border:none !important;
@@ -617,7 +651,7 @@ HTML = """<!doctype html>
 <div class="app">
 
   <header class="bar">
-    <h1>How to Get Abducted by Aliens<span class="sub">— U.S. UFO sightings, 1950–2014 · NUFORC</span></h1>
+    <h1>How to Get Abducted by Aliens<span class="sub">63,832 UFO reports from across the U.S., 1950 to 2014. Data from NUFORC.</span></h1>
     <nav class="tabs">
       <button data-tab="where" class="active">Where</button>
       <button data-tab="when">When</button>
@@ -626,14 +660,14 @@ HTML = """<!doctype html>
     <button id="clear-all-btn" title="Reset every filter to its default" style="background:transparent; border:1px solid #2a313a; color:#9ba3ad; padding:6px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:600; letter-spacing:0.02em;">
       ↺ Clear all
     </button>
-    <div class="credit">HCDE 411 · Antares Yuan</div>
+    <div class="credit">Antares Yuan — HCDE 411 final</div>
   </header>
 
   <!-- TAB 1: WHERE -->
   <main class="tab tab-where active" data-tab="where">
     <div class="card" style="overflow:hidden;">
       <h2>Main map
-        <span class="hint">Zoom out → states shown as circles · zoom in → individual sightings</span>
+        <span class="hint">Zoom out for state totals, zoom in for individual reports.</span>
       </h2>
       <div class="body" style="padding:0;">
         <div id="main-map"></div>
@@ -642,9 +676,9 @@ HTML = """<!doctype html>
 
     <div class="where-side">
       <div class="info-card">
-        <div class="label">Currently viewing</div>
-        <div class="state-name" id="state-name-display">All U.S. states</div>
-        <div class="total"><span id="state-total-display">—</span> sightings</div>
+        <div class="label">Showing</div>
+        <div class="state-name" id="state-name-display">Every U.S. state</div>
+        <div class="total"><span id="state-total-display">—</span> sightings in this view</div>
       </div>
       <div class="filter-group">
         <label for="state-filter">State</label>
@@ -657,34 +691,30 @@ HTML = """<!doctype html>
         </select>
       </div>
       <div class="card" style="flex:1;">
-        <h2>How to read this map</h2>
+        <h2>A quick note on this map</h2>
         <div class="body" style="padding:12px 16px; overflow-y:auto; font-size:12px; line-height:1.55; color:#444;">
-          <div style="margin-bottom:9px;">
-            <b style="color:#0f1419;">Zoomed-out:</b> one green circle per
-            state. Number = total sightings 1950–2014. Hover for the state's
-            top event types and median sighting duration.
+          <div style="margin-bottom:10px;">
+            Zoomed out, every state gets one green circle with its total
+            sightings inside. Hover one to see the top event types and the
+            median sighting length.
           </div>
-          <div style="margin-bottom:9px;">
-            <b style="color:#0f1419;">Zoomed-in:</b> individual reports,
-            colored by narrative cluster. We grouped each sighting's free-text
-            description into 6 themes using TF-IDF + KMeans:
+          <div style="margin-bottom:10px;">
+            Zoom in and the points break apart into individual reports.
+            Each one is colored by a "narrative cluster" — six recurring
+            patterns I pulled out of the free-text descriptions using
+            TF-IDF + KMeans:
           </div>
           <div id="cluster-legend" style="display:flex; flex-direction:column; gap:4px; margin-bottom:10px; padding:8px 10px; background:#fafafa; border-radius:6px;"></div>
-          <div style="margin-bottom:9px;">
-            Each point's color matches its cluster. Aggregated cluster circles
-            (between state and street zoom levels) take the color of the
-            <em>dominant</em> cluster among their members.
-          </div>
-          <div style="margin-bottom:9px;">
-            <b style="color:#0f1419;">Filter by cluster:</b> click a bar in
-            the <em>What</em> tab's "Description clusters" chart to filter
-            the map to that cluster. Click again to clear.
+          <div style="margin-bottom:10px;">
+            The middle-zoom aggregated circles take the color of whichever
+            cluster dominates inside them.
           </div>
           <div style="font-size:11px; color:#888; border-top:1px solid #eee; padding-top:8px;">
-            "General night-sky reports" is the catch-all bucket — it's by far
-            the biggest cluster and isn't a strong signal on its own. The
-            narrower clusters (triangular craft, hovering shaped objects,
-            etc.) carry the actually-distinctive narrative patterns.
+            "General night-sky reports" is the boring catch-all — it's
+            mostly vague stuff like "lights moving fast." The narrower
+            clusters (triangular craft, hovering shaped objects, the
+            "I saw a UFO" type) are where the actually-distinctive
+            stories live.
           </div>
         </div>
       </div>
@@ -695,7 +725,7 @@ HTML = """<!doctype html>
   <main class="tab tab-when" data-tab="when">
     <div class="card">
       <h2>Decade map
-        <span class="hint">single full-screen view · use the controls to advance through decades</span>
+        <span class="hint">One decade at a time. Use the buttons below to step or play through them.</span>
       </h2>
       <div class="body"><div id="plotly-decmap"></div></div>
     </div>
@@ -714,9 +744,9 @@ HTML = """<!doctype html>
 
     <div class="card">
       <h2>Sightings over time
-        <span class="hint">yearly count · 1950 – 2014 · the decade map cycles through this curve</span>
+        <span class="hint">Yearly counts from 1950 to 2014. The decade map above moves along this curve.</span>
       </h2>
-      <div class="body"><div id="plotly-ts"></div></div>
+      <div class="body" style="padding:14px 18px;"><div id="vega-ts"></div></div>
     </div>
   </main>
 
@@ -724,40 +754,43 @@ HTML = """<!doctype html>
   <main class="tab tab-what" data-tab="what">
     <div class="card">
       <h2>Sightings per 100k residents
-        <span class="hint">top 15 states · normalized by 2010 Census population · click a bar to focus the map</span>
+        <span class="hint">Top 15 states once you control for population. Click any bar to jump the map there.</span>
       </h2>
       <div class="body"><div id="plotly-sh"></div></div>
     </div>
     <div class="card cluster-detail-card">
-      <h2>Description clusters <span class="hint">TF-IDF + KMeans (k=6)</span></h2>
+      <h2>Description clusters
+        <span class="hint">Six recurring themes pulled out of the report text. Click a bar to filter the map.</span>
+      </h2>
       <div class="body"><div id="plotly-cl"></div></div>
       <div class="terms-grid" id="cluster-terms-grid"></div>
     </div>
     <div class="card">
       <h2>Duration by event type
-        <span class="hint">Altair · log x · 8k-record sample · click "⋯" on the chart to save PNG / SVG</span>
+        <span class="hint">How long sightings last, broken out by event type. Log scale on the x-axis.</span>
       </h2>
-      <div class="body" style="padding:14px 18px;"><div id="vega-duration"></div></div>
+      <div class="body"><div id="plotly-duration"></div></div>
     </div>
     <div class="card">
-      <h2>Reading guide</h2>
-      <div class="body" style="padding:14px 18px; overflow-y:auto; font-size:12.5px; line-height:1.6; color:#444;">
-        <p style="margin:0 0 10px;"><b>Why these views?</b> The abduction question really has
-        three parts: <em>where</em> activity is concentrated relative to who lives there,
-        <em>which</em> narrative pattern reads as a real encounter, and <em>how long</em> sightings
-        tend to last.</p>
-        <p style="margin:0 0 10px;"><b>Per-capita ranking:</b> Raw counts on the main map track
-        population — California has the most sightings because it has the most people. The
-        per-capita view above ranks states by sightings per 100,000 residents. The top of the
-        list is your actually-better destination. Click any bar to focus the map on that state.</p>
-        <p style="margin:0 0 10px;"><b>Duration by event type:</b> The Altair box plot shows the
-        middle 50% of reported sighting durations per narrative cluster, on a log scale. Boxes
-        farther right = longer encounters = better odds of sustained contact (or of being a
-        deeply confused observer).</p>
-        <p style="margin:0;"><b>Narrative clusters:</b> "General night-sky reports" is the
-        catch-all bucket (35% of all reports). The narrower clusters — <em>Triangular craft</em>,
-        <em>Hovering shaped objects</em>, <em>Classic "UFO" reports</em> — are the more story-
-        shaped candidates if you want a recognizable encounter.</p>
+      <h2>What I learned making this</h2>
+      <div class="body" style="padding:14px 18px; overflow-y:auto; font-size:12.5px; line-height:1.65; color:#444;">
+        <p style="margin:0 0 12px;">If you actually wanted to maximize your chances of seeing one
+        of these things, the three things that matter are: where to be, what kind of report counts
+        as a "real" sighting, and how long they tend to stick around.</p>
+        <p style="margin:0 0 12px;">The big map looks population-shaped at first — California
+        wins, Texas wins, New York wins. That's mostly because those states have a lot of people.
+        Once I divided by population, Washington ended up #1 and the top of the list filled up
+        with Montana, Oregon, the rural Mountain West, and New England — places with dark skies
+        and not much else to do at 2am.</p>
+        <p style="margin:0 0 12px;">Most reports turn out to be vague descriptions of lights
+        moving in the sky. The KMeans clustering put about 35% of them in one big "General
+        night-sky" bucket. The other five clusters are smaller but more interesting — Triangular
+        craft, Hovering shaped objects, and the explicit "I saw a UFO" reports are the ones with
+        recognizable encounter shapes.</p>
+        <p style="margin:0;">Duration is the surprising one. Most clusters look pretty similar
+        on the box plot, but a few have much wider ranges — meaning some people are reporting
+        encounters lasting hours, not seconds. Those are probably either the abduction-grade
+        encounters everyone is chasing, or someone staring at Venus for a really long time.</p>
       </div>
     </div>
   </main>
@@ -1000,23 +1033,22 @@ function applyFilters() {
   /* Info card */
   document.getElementById('state-total-display').textContent = filtered.length.toLocaleString();
   if (selectedState === 'ALL') {
-    document.getElementById('state-name-display').textContent = 'All U.S. states';
+    document.getElementById('state-name-display').textContent = 'Every U.S. state';
   } else {
     const row = stateAggs.find(s => s.st === selectedState);
     document.getElementById('state-name-display').textContent = row ? row.sn : selectedState;
   }
 
-  /* Side panel: time series (yearly counts) */
+  /* Side panel: time series (Altair). We recompute the year counts from the
+     filtered points, then update the embedded Vega view's data. */
   const byYr = {};
   filtered.forEach(p => { byYr[p.yr] = (byYr[p.yr] || 0) + 1; });
   const yrs = Object.keys(byYr).map(Number).sort((a,b) => a - b);
-  Plotly.react('plotly-ts', [{
-    x: yrs, y: yrs.map(y => byYr[y]),
-    type:'scatter', mode:'lines', fill:'tozeroy',
-    line:{ color:'#1E7F5E', width: 2.2 },
-    fillcolor:'rgba(54,194,161,0.22)',
-    hovertemplate:'<b>%{x}</b><br>%{y:,} sightings<extra></extra>',
-  }], tsSpec.layout, cfg);
+  const tsValues = yrs.map(y => ({ Year: y, Sightings: byYr[y] }));
+  if (window._tsView) {
+    const changeSet = vega.changeset().remove(() => true).insert(tsValues);
+    window._tsView.change('source_0', changeSet).runAsync();
+  }
 
   /* Side panel: per-capita ranking is a fixed state-level chart and does
      not change with shape / cluster / time filters. We only highlight the
@@ -1239,8 +1271,13 @@ playBtn.addEventListener('click', () => {
   }
 });
 
-// Time series
-Plotly.newPlot('plotly-ts', tsSpec.data, tsSpec.layout, cfg);
+// Time series — Altair / Vega-Embed (this satisfies the course's Altair requirement).
+// We keep a reference to the view so the filters can stream new data into it.
+vegaEmbed('#vega-ts', tsSpec, {
+  actions: { export: { png: true, svg: true }, source: false, compiled: false, editor: false },
+  renderer: 'svg',
+  downloadFileName: 'sightings_over_time'
+}).then(result => { window._tsView = result.view; });
 
 
 /* ====================== TAB 3 — WHAT ====================== */
@@ -1250,13 +1287,7 @@ Plotly.newPlot('plotly-sh', shSpec.data, shSpec.layout, cfg).then(() => {
 Plotly.newPlot('plotly-cl', clSpec.data, clSpec.layout, cfg).then(() => {
   attachClusterBarClick();
 });
-/* Enable the Vega-Embed "⋯" menu but limit it to export options only
-   (Save as PNG / SVG). Source / Compiled / Editor entries are hidden. */
-vegaEmbed('#vega-duration', durSpec, {
-  actions: { export: { png: true, svg: true }, source: false, compiled: false, editor: false },
-  renderer: 'svg',
-  downloadFileName: 'duration_by_event_type'
-});
+Plotly.newPlot('plotly-duration', durSpec.data, durSpec.layout, cfg);
 
 // Cluster top terms grid
 const termsGrid = document.getElementById('cluster-terms-grid');
@@ -1280,7 +1311,7 @@ applyFilters();
 
 out = HTML
 out = out.replace("__DATA__", json.dumps(js_data))
-out = out.replace("__TS__",   json.dumps(ts_fig.to_dict(), default=str))
+out = out.replace("__TS__",   json.dumps(ts_spec_altair, default=str))
 out = out.replace("__SH__",   json.dumps(sh_fig.to_dict(), default=str))
 out = out.replace("__CL__",   json.dumps(cl_fig.to_dict(), default=str))
 out = out.replace("__DEC__",  json.dumps(dec_init_fig.to_dict(), default=str))

@@ -80,12 +80,12 @@ CLUSTER_LABELS = {
     5: 'Classic "UFO" reports',
 }
 CLUSTER_COLOR = {
-    0: "#E53935",   # red — multi-light formations
-    1: "#7D7D7D",   # gray — general (the catch-all bucket)
-    2: "#FFD54A",   # yellow — bright single lights
-    3: "#9B6CDB",   # purple — triangular craft
-    4: "#4C9AFF",   # blue — hovering shaped objects
-    5: "#36C2A1",   # green — classic UFO
+    0: "#C95E47",   # terracotta — multi-light / colored formations
+    1: "#8E8E8E",   # neutral slate — general night-sky (catch-all)
+    2: "#D9A24F",   # warm gold — bright single lights
+    3: "#5C6B9A",   # dusty navy — triangular craft
+    4: "#4D8676",   # sage teal — hovering shaped objects
+    5: "#7C4B6D",   # muted plum — classic "UFO" reports
 }
 
 def group_shape(s):
@@ -268,11 +268,11 @@ us_year_for_alt = us_year.rename(columns={"year": "Year", "count": "Sightings"})
 ts_chart = (
     alt.Chart(us_year_for_alt, title="")
     .mark_area(
-        line=alt.LineConfig(color="#1E7F5E", strokeWidth=2.2, opacity=1),
+        line=alt.LineConfig(color="#2c3e5a", strokeWidth=2.2, opacity=1),
         color=alt.Gradient(
             gradient="linear",
-            stops=[alt.GradientStop(color="rgba(54,194,161,0.30)", offset=0),
-                   alt.GradientStop(color="rgba(54,194,161,0.05)", offset=1)],
+            stops=[alt.GradientStop(color="rgba(44,62,90,0.30)", offset=0),
+                   alt.GradientStop(color="rgba(44,62,90,0.04)", offset=1)],
             x1=0, x2=0, y1=0, y2=1,
         ),
         interpolate="monotone",
@@ -343,7 +343,7 @@ sh_fig = go.Figure(go.Bar(
     y=[s["sn"] for s in top_rate],
     x=[s["rate"] for s in top_rate],
     orientation="h",
-    marker=dict(color="#1E7F5E"),
+    marker=dict(color="#2c3e5a"),  # night-sky blue, matches main map state circles
     customdata=[[s["st"], s["tot"], s["pop"]] for s in top_rate],
     hovertemplate=(
         "<b>%{y}</b><br>"
@@ -475,8 +475,15 @@ HTML = """<!doctype html>
 <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
 <style>
   :root {
-    --ink:#0f1419; --muted:#5b6470; --line:#e5e7eb;
-    --bg:#eef0f3; --card:#fff; --accent:#1E7F5E; --accent2:#36C2A1;
+    --ink:#1a1d24;          /* warm dark indigo (not pure black) */
+    --muted:#6b6a63;        /* warm gray for secondary text */
+    --line:#e5dfd2;          /* warm ivory border */
+    --bg:#f4f1ec;            /* warm cream paper background */
+    --card:#ffffff;
+    --accent:#2c3e5a;       /* unified deep night-sky blue */
+    --accent2:#3a5076;      /* lighter night-sky for hover */
+    --night:#2c3e5a;
+    --night-deep:#1a2538;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -490,26 +497,26 @@ HTML = """<!doctype html>
     width:100vw; height:100vh; overflow:hidden;
   }
   header.bar {
-    background:#0f1419; color:#fff;
+    background:var(--card); color:var(--ink);
+    border-bottom:1px solid var(--line);
     display:flex; flex-wrap:nowrap;
     align-items:center; gap:14px; padding:0 24px;
   }
-  header.bar h1 { flex:1 1 auto; }
-  #clear-all-btn:hover { background:#1a2027; color:#fff; }
-  header.bar h1 { font-size:16px; font-weight:700; margin:0; }
-  header.bar h1 .sub { font-size:12px; color:#9ba3ad; margin-left:8px; font-weight:400; }
+  header.bar h1 { flex:1 1 auto; font-size:16px; font-weight:700; margin:0; color:var(--ink); }
+  header.bar h1 .sub { font-size:12px; color:var(--muted); margin-left:8px; font-weight:400; }
   nav.tabs { display:flex; gap:4px; }
   nav.tabs button {
-    background:transparent; color:#9ba3ad; border:none;
+    background:transparent; color:var(--muted); border:none;
     padding:8px 18px; font-size:13px; cursor:pointer;
     border-radius:8px; font-weight:600;
     transition: all 0.15s ease;
   }
-  nav.tabs button:hover { color:#fff; background:rgba(255,255,255,0.06); }
+  nav.tabs button:hover { color:var(--ink); background:#efece4; }
   nav.tabs button.active {
-    background:var(--accent2); color:#0f1419;
+    background:var(--accent); color:#f4f1ec;
   }
-  header.bar .credit { font-size:11px; color:#9ba3ad; }
+  header.bar .credit { font-size:11px; color:var(--muted); }
+  #clear-all-btn:hover { background:#efece4; color:var(--ink); }
 
   /* TAB CONTAINERS — each takes full remaining viewport */
   .tab {
@@ -532,11 +539,11 @@ HTML = """<!doctype html>
     box-shadow:0 1px 3px rgba(0,0,0,0.06);
   }
   .tab-when .controls button {
-    background:var(--accent); color:#fff; border:none;
+    background:var(--accent); color:#f4f1ec; border:none;
     padding:8px 16px; font-size:13px; cursor:pointer;
     border-radius:6px; font-weight:600;
   }
-  .tab-when .controls button:hover { background:#155b44; }
+  .tab-when .controls button:hover { background:#1a2538; }
   .tab-when .controls button:disabled { opacity:0.5; cursor:default; }
   .tab-when .controls .scrubber {
     flex:1; display:flex; align-items:center; gap:8px;
@@ -549,10 +556,10 @@ HTML = """<!doctype html>
   }
   .tab-when .pills { display:flex; gap:6px; }
   .tab-when .pills button {
-    background:#eef9f4; color:var(--accent); padding:5px 11px; font-size:12px;
+    background:#e8eaf0; color:var(--accent); padding:5px 11px; font-size:12px;
   }
   .tab-when .pills button.on {
-    background:var(--accent); color:#fff;
+    background:var(--accent); color:#f4f1ec;
   }
 
   /* TAB 3 — WHAT: grid of 4 cards */
@@ -584,13 +591,22 @@ HTML = """<!doctype html>
   /* SIDE PANEL (WHERE tab) */
   .where-side { display:flex; flex-direction:column; gap:10px; min-height:0; }
   .info-card {
-    background:linear-gradient(135deg,var(--accent2),var(--accent));
-    color:#fff; border-radius:10px; padding:18px 20px;
+    background:var(--card); color:var(--ink);
+    border-radius:10px; padding:18px 20px;
+    border-left:4px solid var(--accent);   /* thin accent stripe = identity */
     box-shadow:0 1px 3px rgba(0,0,0,0.06);
   }
-  .info-card .label { font-size:11px; opacity:.9; text-transform:uppercase; letter-spacing:.08em; }
-  .info-card .state-name { font-size:26px; font-weight:800; margin-top:4px; line-height:1.1; }
-  .info-card .total { font-size:14px; opacity:.95; margin-top:6px; }
+  .info-card .label {
+    font-size:11px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.08em;
+  }
+  .info-card .state-name {
+    font-size:26px; font-weight:800; margin-top:4px;
+    line-height:1.1; color:var(--ink);
+  }
+  .info-card .total {
+    font-size:13px; color:var(--muted); margin-top:6px;
+  }
   .filter-group {
     display:grid; grid-template-columns: auto 1fr; gap:8px 14px;
     align-items:center; padding:14px 16px;
@@ -623,7 +639,7 @@ HTML = """<!doctype html>
     min-width:270px; max-width:360px;
     white-space:normal; word-wrap:break-word; overflow-wrap:break-word;
   }
-  .state-tooltip b, .point-tooltip b { font-size:13px; color:#36C2A1; }
+  .state-tooltip b, .point-tooltip b { font-size:13px; color:#d9a24f; }  /* warm gold for state names */
   .state-tooltip .row, .point-tooltip .row { margin:3px 0; }
   .state-tooltip .row.muted, .point-tooltip .row.muted { color:#9ba3ad; font-size:11px; }
   .state-tooltip .types-grid {
@@ -672,7 +688,7 @@ HTML = """<!doctype html>
       <button data-tab="when">When</button>
       <button data-tab="what">What</button>
     </nav>
-    <button id="clear-all-btn" title="Reset every filter to its default" style="background:transparent; border:1px solid #2a313a; color:#9ba3ad; padding:6px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:600; letter-spacing:0.02em;">
+    <button id="clear-all-btn" title="Reset every filter to its default" style="background:transparent; border:1px solid var(--line); color:var(--muted); padding:6px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:600; letter-spacing:0.02em;">
       ↺ Clear all
     </button>
     <div class="credit">Antares Yuan — HCDE 411 final</div>
@@ -862,7 +878,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 // the dominant narrative cluster is the same in nearly all 49 states (the
 // "general night-sky reports" catch-all), so coloring them is misleading.
 // Per-point cluster color still kicks in at high zoom.
-const STATE_COLOR = '#1E7F5E';
+const STATE_COLOR = '#2c3e5a';  // deep night-sky blue (matches the info card)
 const stateLayer = L.layerGroup();
 stateAggs.forEach(s => {
   const r = Math.max(18, Math.min(48, 8 + Math.sqrt(s.tot) * 0.8));
@@ -920,9 +936,9 @@ SHAPE_DOMAIN.forEach(sg => {
       const dominantCl = Object.keys(counts).reduce(
         (a, b) => (counts[a] >= counts[b] ? a : b)
       );
-      const color = CLUSTER_COLOR[dominantCl] || '#1E7F5E';
-      // Dark text on yellow (C2) and gray (C1), white text on the rest
-      const textColor = (dominantCl == 2 || dominantCl == 1) ? '#0f1419' : '#fff';
+      const color = CLUSTER_COLOR[dominantCl] || '#2c3e5a';
+      // Dark text only on the warm gold (C2); the rest is dark enough for white.
+      const textColor = (dominantCl == 2) ? '#1a1d24' : '#fff';
       const count = cluster.getChildCount();
       let size = 26;
       if (count >= 10)  size = 30;
@@ -999,6 +1015,7 @@ syncLayersToZoom();
 /* ====================== FILTERS ====================== */
 let selectedState   = 'ALL';
 let selectedCluster = 'ALL';   // string id ("0"..."5") or 'ALL'
+let _lastClusterBuilt = 'ALL';  // remember which cluster the current markers reflect
 
 const stateSel = document.getElementById('state-filter');
 stateAggs.forEach(s => {
@@ -1030,86 +1047,107 @@ Object.entries(CLUSTER_LABELS).forEach(([cid, label]) => {
 });
 
 function applyFilters() {
-  /* Apply filters to the points dataset for side-panel charts + info card. */
+  console.log('[applyFilters] state =', selectedState, 'cluster =', selectedCluster);
+
+  /* Filter point dataset. */
   let filtered = points;
   if (selectedState   !== 'ALL') filtered = filtered.filter(p => p.st === selectedState);
   if (selectedCluster !== 'ALL') filtered = filtered.filter(p => String(p.cl) === selectedCluster);
-  /* Keep header dropdowns in sync with the current filter state */
-  stateSel.value = selectedState;
-  eventSel.value = selectedCluster;
+  console.log('[applyFilters] filtered length =', filtered.length);
+
+  /* Keep dropdowns in sync. */
+  try { stateSel.value = selectedState; eventSel.value = selectedCluster; } catch(e){}
+
+  /* ============== HIGHEST-PRIORITY UPDATES (info card + map zoom) ==============
+     These come first so even if Plotly/Vega chart updates throw below, the user
+     still gets the visible state change they asked for. */
 
   /* Info card */
-  document.getElementById('state-total-display').textContent = filtered.length.toLocaleString();
-  if (selectedState === 'ALL') {
-    document.getElementById('state-name-display').textContent = 'Every U.S. state';
-  } else {
-    const row = stateAggs.find(s => s.st === selectedState);
-    document.getElementById('state-name-display').textContent = row ? row.sn : selectedState;
-  }
-
-  /* Side panel: time series (Altair). We recompute the year counts from the
-     filtered points, then update the embedded Vega view's data. */
-  const byYr = {};
-  filtered.forEach(p => { byYr[p.yr] = (byYr[p.yr] || 0) + 1; });
-  const yrs = Object.keys(byYr).map(Number).sort((a,b) => a - b);
-  const tsValues = yrs.map(y => ({ Year: y, Sightings: byYr[y] }));
-  if (window._tsView) {
-    const changeSet = vega.changeset().remove(() => true).insert(tsValues);
-    window._tsView.change('source_0', changeSet).runAsync();
-  }
-
-  /* Side panel: per-capita ranking is a fixed state-level chart and does
-     not change with shape / cluster / time filters. We only highlight the
-     currently selected state (if any). */
-  highlightPerCapitaSelectedState();
-
-  /* Side panel: cluster distribution (also clickable for filtering) */
-  const byCl = {};
-  filtered.forEach(p => { byCl[p.cl] = (byCl[p.cl] || 0) + 1; });
-  const clKeys = Object.keys(CLUSTER_LABELS).sort((a,b) => (byCl[a]||0) - (byCl[b]||0));
-  const clColors = clKeys.map(k => CLUSTER_COLOR[k]);
-  Plotly.react('plotly-cl', [{
-    y: clKeys.map(k => CLUSTER_LABELS[k]),
-    x: clKeys.map(k => byCl[k] || 0),
-    type:'bar', orientation:'h',
-    marker: {
-      color: clColors,
-      line: {
-        color: clKeys.map(k => selectedCluster === k ? '#0f1419' : 'rgba(0,0,0,0)'),
-        width: clKeys.map(k => selectedCluster === k ? 2 : 0),
-      },
-    },
-    text: clKeys.map(k => (byCl[k] || 0).toLocaleString()),
-    textposition: 'outside',
-    hovertemplate:'<b>%{y}</b><br>%{x:,} sightings · click to filter<extra></extra>',
-  }], clSpec.layout, cfg);
-
-  /* Main map: ensure all (internal) shape-group layers are visible
-     at high zoom — there is no per-shape filter anymore. */
-  SHAPE_DOMAIN.forEach(sg => {
-    if (!map.hasLayer(pointLayers[sg]) && map.getZoom() >= ZOOM_THRESHOLD) {
-      map.addLayer(pointLayers[sg]);
+  try {
+    document.getElementById('state-total-display').textContent = filtered.length.toLocaleString();
+    if (selectedState === 'ALL') {
+      document.getElementById('state-name-display').textContent = 'Every U.S. state';
+    } else {
+      const row = stateAggs.find(s => s.st === selectedState);
+      document.getElementById('state-name-display').textContent = row ? row.sn : selectedState;
     }
-  });
+  } catch(e) { console.warn('[applyFilters] info card update failed', e); }
 
-  /* Cluster filter — rebuild marker visibility per layer. Setting CSS
-     display:none on the icon won't update cluster counts; we re-create
-     the markers in the appropriate sub-layer instead. */
-  rebuildClusterFilter();
+  /* Map zoom — avoid Math.min(...largeArray) (blows Safari arg limit). */
+  try {
+    if (selectedState !== 'ALL' && filtered.length > 0) {
+      let minLat =  90, maxLat = -90, minLng =  180, maxLng = -180;
+      for (let i = 0, n = filtered.length; i < n; i++) {
+        const p = filtered[i];
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+      console.log('[applyFilters] fitBounds', [[minLat, minLng], [maxLat, maxLng]]);
+      map.fitBounds([[minLat, minLng], [maxLat, maxLng]], { padding: [40, 40] });
+    } else if (selectedState === 'ALL') {
+      map.setView([39.5, -98.5], 4);
+    }
+  } catch(e) { console.warn('[applyFilters] map zoom failed', e); }
 
-  /* Map: zoom to selected state */
-  if (selectedState !== 'ALL' && filtered.length > 0) {
-    const lats = filtered.map(p => p.lat);
-    const lngs = filtered.map(p => p.lng);
-    map.fitBounds([
-      [Math.min(...lats), Math.min(...lngs)],
-      [Math.max(...lats), Math.max(...lngs)],
-    ], { padding: [40, 40] });
-  } else if (selectedState === 'ALL') {
-    map.setView([39.5, -98.5], 4);
-  }
-  syncLayersToZoom();
+  try {
+    SHAPE_DOMAIN.forEach(sg => {
+      if (!map.hasLayer(pointLayers[sg]) && map.getZoom() >= ZOOM_THRESHOLD) {
+        map.addLayer(pointLayers[sg]);
+      }
+    });
+    syncLayersToZoom();
+  } catch(e) { console.warn('[applyFilters] layer sync failed', e); }
 
+  /* Cluster filter rebuild ONLY when cluster changed. */
+  try {
+    if (selectedCluster !== _lastClusterBuilt) {
+      rebuildClusterFilter();
+      _lastClusterBuilt = selectedCluster;
+    }
+  } catch(e) { console.warn('[applyFilters] cluster rebuild failed', e); }
+
+  /* ============== SIDE PANEL CHARTS (lower priority — wrapped) ============== */
+
+  /* Time series Vega view update */
+  try {
+    const byYr = {};
+    filtered.forEach(p => { byYr[p.yr] = (byYr[p.yr] || 0) + 1; });
+    const yrs = Object.keys(byYr).map(Number).sort((a,b) => a - b);
+    const tsValues = yrs.map(y => ({ Year: y, Sightings: byYr[y] }));
+    if (window._tsView && typeof vega !== 'undefined') {
+      const changeSet = vega.changeset().remove(() => true).insert(tsValues);
+      window._tsView.change('source_0', changeSet).runAsync();
+    }
+  } catch(e) { console.warn('[applyFilters] time series update failed', e); }
+
+  /* Per-capita highlight */
+  try { highlightPerCapitaSelectedState(); }
+  catch(e) { console.warn('[applyFilters] per-capita highlight failed', e); }
+
+  /* Cluster bar update */
+  try {
+    const byCl = {};
+    filtered.forEach(p => { byCl[p.cl] = (byCl[p.cl] || 0) + 1; });
+    const clKeys = Object.keys(CLUSTER_LABELS).sort((a,b) => (byCl[a]||0) - (byCl[b]||0));
+    const clColors = clKeys.map(k => CLUSTER_COLOR[k]);
+    Plotly.react('plotly-cl', [{
+      y: clKeys.map(k => CLUSTER_LABELS[k]),
+      x: clKeys.map(k => byCl[k] || 0),
+      type:'bar', orientation:'h',
+      marker: {
+        color: clColors,
+        line: {
+          color: clKeys.map(k => selectedCluster === k ? '#0f1419' : 'rgba(0,0,0,0)'),
+          width: clKeys.map(k => selectedCluster === k ? 2 : 0),
+        },
+      },
+      text: clKeys.map(k => (byCl[k] || 0).toLocaleString()),
+      textposition: 'outside',
+      hovertemplate:'<b>%{y}</b><br>%{x:,} sightings · click to filter<extra></extra>',
+    }], clSpec.layout, cfg);
+  } catch(e) { console.warn('[applyFilters] cluster bar update failed', e); }
 }
 
 /* Re-populate the 6 shape sub-layers from the points array, respecting
@@ -1134,8 +1172,16 @@ function rebuildClusterFilter() {
   });
 }
 
-stateSel.addEventListener('change', e => { selectedState   = e.target.value; applyFilters(); });
-eventSel.addEventListener('change', e => { selectedCluster = e.target.value; applyFilters(); });
+stateSel.addEventListener('change', e => {
+  console.log('[state-filter] change ->', e.target.value);
+  selectedState = e.target.value;
+  applyFilters();
+});
+eventSel.addEventListener('change', e => {
+  console.log('[event-filter] change ->', e.target.value);
+  selectedCluster = e.target.value;
+  applyFilters();
+});
 
 /* Cluster bar — click a bar to filter the map; click same bar again to clear */
 function attachClusterBarClick() {

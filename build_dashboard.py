@@ -619,12 +619,26 @@ HTML = """<!doctype html>
     background:rgba(15,20,25,0.96); color:#fff; border:none !important;
     border-radius:7px; padding:11px 14px;
     box-shadow:0 4px 14px rgba(0,0,0,0.22);
-    font-size:12px; line-height:1.5; max-width:340px;
+    font-size:12px; line-height:1.5;
+    min-width:270px; max-width:360px;
     white-space:normal; word-wrap:break-word; overflow-wrap:break-word;
   }
   .state-tooltip b, .point-tooltip b { font-size:13px; color:#36C2A1; }
   .state-tooltip .row, .point-tooltip .row { margin:3px 0; }
   .state-tooltip .row.muted, .point-tooltip .row.muted { color:#9ba3ad; font-size:11px; }
+  .state-tooltip .types-grid {
+    display:grid; grid-template-columns: 1fr auto;
+    gap:3px 12px; align-items:center; margin-top:2px;
+  }
+  .state-tooltip .types-grid .name {
+    display:flex; align-items:center; gap:7px; min-width:0;
+  }
+  .state-tooltip .types-grid .name .dot {
+    width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  }
+  .state-tooltip .types-grid .count {
+    text-align:right; color:#cfd4da; font-variant-numeric:tabular-nums;
+  }
   .point-tooltip .desc {
     margin-top:7px; padding-top:7px; border-top:1px solid #2a313a;
     color:#dde2e8; font-style:italic; font-size:11.5px; line-height:1.5;
@@ -855,23 +869,19 @@ stateAggs.forEach(s => {
   const dominantLabel = CLUSTER_LABELS[s.dcl] || '—';
   const dominantColor = CLUSTER_COLOR[s.dcl] || '#999';
   const topEventsHtml = (s.topcl || []).map(t =>
-    `<div class="row" style="display:flex;justify-content:space-between;gap:14px;">
-       <span style="display:inline-flex;align-items:center;gap:6px;">
-         <span style="width:8px;height:8px;border-radius:50%;background:${CLUSTER_COLOR[t.cl]||'#999'};display:inline-block;"></span>${t.lbl}
-       </span>
-       <span>${t.n.toLocaleString()}</span>
-     </div>`).join('');
+    `<div class="name"><span class="dot" style="background:${CLUSTER_COLOR[t.cl]||'#999'};"></span><span>${t.lbl}</span></div>
+     <div class="count">${t.n.toLocaleString()}</div>`
+  ).join('');
   const tipHtml =
-    `<b>${s.sn}</b>
-     <div class="row">${s.tot.toLocaleString()} sightings</div>
-     <div class="row muted">Median duration: ${s.avg_min} min</div>
-     <div class="row muted" style="margin-top:7px;">Most common event type:</div>
+    `<div><b>${s.sn}</b></div>
+     <div class="row muted">${s.tot.toLocaleString()} sightings · ${s.avg_min} min median</div>
+     <div class="row muted" style="margin-top:8px;">Most common type</div>
      <div class="row" style="display:flex;align-items:center;gap:7px;">
        <span style="width:9px;height:9px;border-radius:50%;background:${dominantColor};display:inline-block;flex-shrink:0;"></span>
-       <span><b>${dominantLabel}</b> <span style="opacity:0.65;">(${s.dcl_pct}%)</span></span>
+       <span><b>${dominantLabel}</b> <span style="opacity:0.6;">(${s.dcl_pct}%)</span></span>
      </div>
-     <div class="row muted" style="margin-top:7px;">Top event types:</div>
-     ${topEventsHtml}`;
+     <div class="row muted" style="margin-top:8px;">Top event types</div>
+     <div class="types-grid">${topEventsHtml}</div>`;
   const icon = L.divIcon({
     html: `<div style="background:${STATE_COLOR};color:#fff;font-weight:700;font-size:12px;
             width:${r}px;height:${r}px;border-radius:50%;display:flex;align-items:center;justify-content:center;
